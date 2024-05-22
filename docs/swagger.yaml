@@ -1,5 +1,8 @@
 basePath: /
 definitions:
+  gin.H:
+    additionalProperties: {}
+    type: object
   gorm.DeletedAt:
     properties:
       time:
@@ -71,6 +74,30 @@ info:
   title: User Service API
   version: "1.0"
 paths:
+  /google-callback:
+    get:
+      description: Callback for Google OAuth2 login
+      responses:
+        "200":
+          description: data
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/gin.H'
+      summary: Google OAuth2 callback
+      tags:
+      - User
+  /google-login:
+    get:
+      description: Login a user with Google OAuth2
+      responses:
+        "302":
+          description: Found
+      summary: Login with Google
+      tags:
+      - User
   /login:
     post:
       consumes:
@@ -135,4 +162,12 @@ paths:
       summary: Register a new user
       tags:
       - user
+securityDefinitions:
+  OAuth2Application:
+    flow: application
+    scopes:
+      email: Grants read access to the user's email
+      profile: Grants read access to the user's profile data
+    tokenUrl: https://accounts.google.com/o/oauth2/token
+    type: oauth2
 swagger: "2.0"

@@ -11,16 +11,24 @@ func NewUserRepository() *UserRepository {
 	return &UserRepository{}
 }
 
-func (ur *UserRepository) CreateUser(user *models.User) error {
-	db := database.GetDB()
-	return db.Create(user).Error
+func (ur *UserRepository) Create(user *models.User) error {
+	return database.GetDB().Create(user).Error
 }
 
-func (ur *UserRepository) GetUserByEmail(email string) (*models.User, error) {
-	db := database.GetDB()
+func (ur *UserRepository) GetByEmail(email string) (*models.User, error) {
 	var user models.User
-	if err := db.Where("email = ?", email).First(&user).Error; err != nil {
-		return nil, err
+	result := database.GetDB().Where("email = ?", email).First(&user)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &user, nil
+}
+
+func (ur *UserRepository) GetByEmailAndPassword(email, password string) (*models.User, error) {
+	var user models.User
+	result := database.GetDB().Where("email = ? AND password = ?", email, password).First(&user)
+	if result.Error != nil {
+		return nil, result.Error
 	}
 	return &user, nil
 }

@@ -24,6 +24,43 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/google-callback": {
+            "get": {
+                "description": "Callback for Google OAuth2 login",
+                "tags": [
+                    "User"
+                ],
+                "summary": "Google OAuth2 callback",
+                "responses": {
+                    "200": {
+                        "description": "data",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/gin.H"
+                        }
+                    }
+                }
+            }
+        },
+        "/google-login": {
+            "get": {
+                "description": "Login a user with Google OAuth2",
+                "tags": [
+                    "User"
+                ],
+                "summary": "Login with Google",
+                "responses": {
+                    "302": {
+                        "description": "Found"
+                    }
+                }
+            }
+        },
         "/login": {
             "post": {
                 "description": "Login a user with email and password",
@@ -124,6 +161,10 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "gin.H": {
+            "type": "object",
+            "additionalProperties": {}
+        },
         "gorm.DeletedAt": {
             "type": "object",
             "properties": {
@@ -207,6 +248,17 @@ const docTemplate = `{
                 "status": {
                     "type": "integer"
                 }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "OAuth2Application": {
+            "type": "oauth2",
+            "flow": "application",
+            "tokenUrl": "https://accounts.google.com/o/oauth2/token",
+            "scopes": {
+                "email": "Grants read access to the user's email",
+                "profile": "Grants read access to the user's profile data"
             }
         }
     }

@@ -1,11 +1,16 @@
 package controllers
 
 import (
-	"github.com/gin-gonic/gin"
+	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
+	"user-service/config"
 	"user-service/internal/models"
 	"user-service/internal/services"
 	"user-service/utils"
+
+	"github.com/gin-gonic/gin"
 )
 
 type UserController struct {
@@ -41,7 +46,7 @@ func (uc *UserController) Register(c *gin.Context) {
 		Password: input.Password,
 	}
 
-	err := uc.UserService.Register(&user)
+	err := uc.UserService.CreateUser(&user)
 	if err != nil {
 		if err.Error() == "email already exists" {
 			utils.SendErrorResponse(c, http.StatusConflict, "Email already exists")
@@ -71,7 +76,7 @@ func (uc *UserController) Login(c *gin.Context) {
 		return
 	}
 
-	user, err := uc.UserService.Login(input.Email, input.Password)
+	user, err := uc.UserService.AuthenticateUser(input.Email, input.Password)
 	if err != nil {
 		utils.SendErrorResponse(c, http.StatusUnauthorized, "Incorrect email or password")
 		return
@@ -79,38 +84,75 @@ func (uc *UserController) Login(c *gin.Context) {
 	c.JSON(http.StatusOK, user)
 }
 
-//// GoogleAuth godoc
-//// @Summary Google Auth
-//// @Description Redirect to Google OAuth consent screen
-//// @Tags user
-//// @Produce  json
-//// @Success 302
-//// @Router /auth/google [get]
-//func (uc *UserController) GoogleAuth(c *gin.Context) {
-//	url := config.GoogleOauthConfig.AuthCodeURL("state", oauth2.AccessTypeOffline)
-//	c.Redirect(http.StatusFound, url)
-//}
-//
-//// GoogleAuthCallback godoc
-//// @Summary Google Auth Callback
-//// @Description Callback for Google OAuth consent screen
-//// @Tags user
-//// @Produce  json
-//// @Success 302
-//// @Router /auth/google/callback [get]
-//func (uc *UserController) GoogleAuthCallback(c *gin.Context) {
-//	code := c.Query("code")
-//	token, err := uc.UserService.GetGoogleToken(code)
-//	if err != nil {
-//		utils.SendErrorResponse(c, http.StatusInternalServerError, "Could not get Google token")
-//		return
-//	}
-//
-//	user, err := uc.UserService.GetGoogleUserInfo(token)
-//	if err != nil {
-//		utils.SendErrorResponse(c, http.StatusInternalServerError, "Could not get Google user info")
-//		return
-//	}
-//
-//	c.JSON(http.StatusOK, user)
-//}
+// GoogleLogin godoc
+// @Summary Login with Google
+// @Description Login a user with Google OAuth2
+// @Tags User
+// @Success 302
+// @Router /google-login [get]
+func (uc *UserController) GoogleLogin(c *gin.Context) {
+	authURL := config.GoogleOAuthConfig.AuthCodeURL("randomstate")
+	fmt.Println(authURL)
+	c.Redirect(http.StatusTemporaryRedirect, authURL)
+}
+
+// GoogleCallback godoc
+// @Summary Google OAuth2 callback
+// @Description Callback for Google OAuth2 login
+// @Tags User
+// @Success 200 {string} string "data"
+// @Failure 500 {object} gin.H
+// @Router /google-callback [get]
+func (uc *UserController) GoogleCallback(c *gin.Context) {
+	code := c.Query("code")
+
+	token, err := config.GoogleOAuthConfig.Exchange(c, code)
+	if err != nil {
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "Incorrect email or password")
+		return
+	}
+
+	response, err := http.Get("https://www.googleapis.com/oauth2/v2/userinfo?access_token=" + token.AccessToken)
+	if err != nil {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "Could not fetch user data")
+		return
+	}
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+
+		}
+	}(response.Body)
+
+	data, _ := io.ReadAll(response.Body)
+
+	var userInfo map[string]interface{}
+
+	if err := json.Unmarshal(data, &userInfo); err != nil {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "Could not fetch user data")
+		return
+	}
+
+	email, ok := userInfo["email"].(string)
+	if !ok {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "Could not fetch user data")
+		return
+	}
+	user, err := uc.UserService.GetUserByEmail(email)
+	if err != nil && err.Error() != "record not found" {
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "Incorrect email or password")
+		return
+	}
+	if user == nil {
+		user = &models.User{
+			Email:    email,
+			Name:     userInfo["given_name"].(string) + " " + userInfo["family_name"].(string),
+			Password: "123456",
+		}
+		err := uc.UserService.CreateUser(user)
+		if err != nil {
+			return
+		}
+	}
+	c.JSON(http.StatusOK, user)
+}
