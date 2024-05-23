@@ -1,34 +1,49 @@
 package repositories
 
 import (
+	"errors"
+	"gorm.io/gorm"
 	"user-service/internal/models"
-	"user-service/pkg/database"
 )
 
-type UserRepository struct{}
+type UserRepository struct {
+	DB *gorm.DB
+}
 
-func NewUserRepository() *UserRepository {
-	return &UserRepository{}
+func NewUserRepository(db *gorm.DB) *UserRepository {
+	return &UserRepository{DB: db}
 }
 
 func (ur *UserRepository) Create(user *models.User) error {
-	return database.GetDB().Create(user).Error
+	return ur.DB.Create(user).Error
+}
+
+func (ur *UserRepository) CreateAuthProvider(authProvider *models.AuthProvider) error {
+	return ur.DB.Create(authProvider).Error
 }
 
 func (ur *UserRepository) GetByEmail(email string) (*models.User, error) {
 	var user models.User
-	result := database.GetDB().Where("email = ?", email).First(&user)
+	result := ur.DB.Where("email = ?", email).First(&user)
 	if result.Error != nil {
 		return nil, result.Error
 	}
 	return &user, nil
 }
 
-func (ur *UserRepository) GetByEmailAndPassword(email, password string) (*models.User, error) {
+func (ur *UserRepository) GetUserByProviderID(providerID string) (*models.User, error) {
 	var user models.User
-	result := database.GetDB().Where("email = ? AND password = ?", email, password).First(&user)
-	if result.Error != nil {
-		return nil, result.Error
+	if err := ur.DB.Where("provider_id = ?", providerID).First(&user).Error; err != nil {
+		return nil, err
 	}
 	return &user, nil
+}
+
+func (ur *UserRepository) CheckEmailExist(user *models.User) error {
+	var count int64
+	ur.DB.Model(&models.User{}).Where("email = ?", user.Email).Count(&count)
+	if count > 0 {
+		return errors.New("email already exists")
+	}
+	return nil
 }

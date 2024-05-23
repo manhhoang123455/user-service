@@ -1,8 +1,11 @@
 package utils
 
 import (
+	"errors"
 	"github.com/gin-gonic/gin"
 )
+
+var EmailAlreadyExistsError = errors.New("email already exists")
 
 type ErrorResponse struct {
 	Status  int    `json:"status"`

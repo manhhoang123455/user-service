@@ -2,7 +2,9 @@ package controllers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"gorm.io/gorm"
 	"io"
 	"net/http"
 	"user-service/config"
@@ -46,10 +48,10 @@ func (uc *UserController) Register(c *gin.Context) {
 		Password: input.Password,
 	}
 
-	err := uc.UserService.CreateUser(&user)
+	err := uc.UserService.RegisterUser(&user)
 	if err != nil {
 		if err.Error() == "email already exists" {
-			utils.SendErrorResponse(c, http.StatusConflict, "Email already exists")
+			utils.SendErrorResponse(c, http.StatusBadRequest, "Email already exists")
 		} else {
 			utils.SendErrorResponse(c, http.StatusInternalServerError, "Could not create user")
 		}
@@ -81,7 +83,12 @@ func (uc *UserController) Login(c *gin.Context) {
 		utils.SendErrorResponse(c, http.StatusUnauthorized, "Incorrect email or password")
 		return
 	}
-	c.JSON(http.StatusOK, user)
+	token, err := utils.GenerateToken(user.ID, user.Role)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+		return
+	}
+	c.JSON(http.StatusOK, token)
 }
 
 // GoogleLogin godoc
@@ -138,21 +145,55 @@ func (uc *UserController) GoogleCallback(c *gin.Context) {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "Could not fetch user data")
 		return
 	}
-	user, err := uc.UserService.GetUserByEmail(email)
-	if err != nil && err.Error() != "record not found" {
-		utils.SendErrorResponse(c, http.StatusUnauthorized, "Incorrect email or password")
+	providerID, ok := userInfo["id"].(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Provider ID not found in user info"})
+		return
+	}
+	user, err := uc.UserService.GetUserByProviderID(providerID)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user from database"})
 		return
 	}
 	if user == nil {
+		// Create new user
 		user = &models.User{
-			Email:    email,
-			Name:     userInfo["given_name"].(string) + " " + userInfo["family_name"].(string),
-			Password: "123456",
+			Email: email,
+			Name:  userInfo["given_name"].(string) + " " + userInfo["family_name"].(string),
 		}
-		err := uc.UserService.CreateUser(user)
-		if err != nil {
+		if err := uc.UserService.CreateUser(user); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
+			return
+		}
+		authProvider := &models.AuthProvider{
+			UserID:     user.ID,
+			Provider:   "google",
+			ProviderID: providerID,
+		}
+		if err := uc.UserService.CreateAuthProvider(authProvider); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create auth provider"})
 			return
 		}
 	}
 	c.JSON(http.StatusOK, user)
+}
+
+func (uc *UserController) CreateSuperUser(c *gin.Context) {
+	var input struct {
+		Email    string `json:"email" binding:"required"`
+		Password string `json:"password" binding:"required"`
+		Name     string `json:"name" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := uc.UserService.CreateSuperUser(input.Email, input.Password, input.Name); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Super user created successfully"})
 }

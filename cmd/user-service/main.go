@@ -35,8 +35,8 @@ func main() {
 
 	// Tự động migrate các bảng
 	db := database.GetDB()
-	if err := db.AutoMigrate(&models.User{}); err != nil {
-		log.Fatalf("Failed to migrate database: %v", err)
+	if err := db.AutoMigrate(&models.User{}, &models.AuthProvider{}); err != nil {
+		log.Fatalf("failed to migrate database: %v", err)
 	}
 
 	// Tạo router mới
