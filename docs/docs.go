@@ -89,7 +89,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/user-service_internal_models.User"
+                            "$ref": "#/definitions/utils.TokenResponse"
                         }
                     },
                     "400": {
@@ -231,7 +231,16 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
+                "last_login": {
+                    "type": "string"
+                },
                 "name": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                },
+                "role": {
                     "type": "string"
                 },
                 "updatedAt": {
@@ -249,16 +258,16 @@ const docTemplate = `{
                     "type": "integer"
                 }
             }
-        }
-    },
-    "securityDefinitions": {
-        "OAuth2Application": {
-            "type": "oauth2",
-            "flow": "application",
-            "tokenUrl": "https://accounts.google.com/o/oauth2/token",
-            "scopes": {
-                "email": "Grants read access to the user's email",
-                "profile": "Grants read access to the user's profile data"
+        },
+        "utils.TokenResponse": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "refresh_token": {
+                    "type": "string"
+                }
             }
         }
     }

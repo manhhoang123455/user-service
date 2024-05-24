@@ -1,11 +1,7 @@
 package controllers
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
-	"gorm.io/gorm"
-	"io"
 	"net/http"
 	"user-service/config"
 	"user-service/internal/models"
@@ -67,7 +63,7 @@ func (uc *UserController) Register(c *gin.Context) {
 // @Accept  json
 // @Produce  json
 // @Param user body models.LoginInput true "User Login Data"
-// @Success 200 {object} models.User
+// @Success 200 {object} utils.TokenResponse
 // @Failure 400 {object} utils.ErrorResponse
 // @Failure 401 {object} utils.ErrorResponse
 // @Router /login [post]
@@ -83,12 +79,19 @@ func (uc *UserController) Login(c *gin.Context) {
 		utils.SendErrorResponse(c, http.StatusUnauthorized, "Incorrect email or password")
 		return
 	}
-	token, err := utils.GenerateToken(user.ID, user.Role)
+	accessToken, err := utils.GenerateToken(user.ID, user.Role, false)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate access token"})
 		return
 	}
-	c.JSON(http.StatusOK, token)
+
+	refreshToken, err := utils.GenerateToken(user.ID, user.Role, true)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate refresh token"})
+		return
+	}
+
+	utils.SendTokenResponse(c, accessToken, refreshToken)
 }
 
 // GoogleLogin godoc
@@ -112,70 +115,28 @@ func (uc *UserController) GoogleLogin(c *gin.Context) {
 // @Router /google-callback [get]
 func (uc *UserController) GoogleCallback(c *gin.Context) {
 	code := c.Query("code")
-
-	token, err := config.GoogleOAuthConfig.Exchange(c, code)
+	user, err := uc.UserService.HandleGoogleCallback(code)
 	if err != nil {
-		utils.SendErrorResponse(c, http.StatusUnauthorized, "Incorrect email or password")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to handle Google callback"})
 		return
 	}
 
-	response, err := http.Get("https://www.googleapis.com/oauth2/v2/userinfo?access_token=" + token.AccessToken)
+	accessToken, err := utils.GenerateToken(user.ID, user.Role, false)
 	if err != nil {
-		utils.SendErrorResponse(c, http.StatusInternalServerError, "Could not fetch user data")
-		return
-	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-
-		}
-	}(response.Body)
-
-	data, _ := io.ReadAll(response.Body)
-
-	var userInfo map[string]interface{}
-
-	if err := json.Unmarshal(data, &userInfo); err != nil {
-		utils.SendErrorResponse(c, http.StatusInternalServerError, "Could not fetch user data")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate access token"})
 		return
 	}
 
-	email, ok := userInfo["email"].(string)
-	if !ok {
-		utils.SendErrorResponse(c, http.StatusInternalServerError, "Could not fetch user data")
+	refreshToken, err := utils.GenerateToken(user.ID, user.Role, true)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate refresh token"})
 		return
 	}
-	providerID, ok := userInfo["id"].(string)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Provider ID not found in user info"})
-		return
-	}
-	user, err := uc.UserService.GetUserByProviderID(providerID)
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user from database"})
-		return
-	}
-	if user == nil {
-		// Create new user
-		user = &models.User{
-			Email: email,
-			Name:  userInfo["given_name"].(string) + " " + userInfo["family_name"].(string),
-		}
-		if err := uc.UserService.CreateUser(user); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
-			return
-		}
-		authProvider := &models.AuthProvider{
-			UserID:     user.ID,
-			Provider:   "google",
-			ProviderID: providerID,
-		}
-		if err := uc.UserService.CreateAuthProvider(authProvider); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create auth provider"})
-			return
-		}
-	}
-	c.JSON(http.StatusOK, user)
+
+	c.JSON(http.StatusOK, gin.H{
+		"access_token":  accessToken,
+		"refresh_token": refreshToken,
+	})
 }
 
 func (uc *UserController) CreateSuperUser(c *gin.Context) {

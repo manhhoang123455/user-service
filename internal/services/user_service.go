@@ -67,7 +67,31 @@ func (us *UserService) AuthenticateUser(email string, password string) (*models.
 		return nil, err
 	}
 	if !utils.CheckPasswordHash(password, user.Password) {
-		return nil, nil
+		return nil, utils.ErrInvalidCredentials
 	}
+	return user, nil
+}
+
+func (us *UserService) HandleGoogleCallback(code string) (*models.User, error) {
+	googleUser, err := utils.GetGoogleUserInfo(code)
+	if err != nil {
+		return nil, err
+	}
+
+	user, err := us.GetUserByEmail(googleUser.Email)
+	if err != nil {
+		// If user does not exist, create a new user
+		newUser := models.User{
+			Email:    googleUser.Email,
+			Name:     googleUser.Name,
+			Role:     "user",
+			Password: "",
+		}
+		if err := us.UserRepository.Create(&newUser); err != nil {
+			return nil, err
+		}
+		return &newUser, nil
+	}
+
 	return user, nil
 }
