@@ -24,4 +24,12 @@ func RegisterRoutes(r *gin.Engine) {
 	{
 		admin.POST("/init-superuser", userController.CreateSuperUser)
 	}
+	user := r.Group("/user")
+	user.Use(middleware.AuthMiddleware())
+	{
+		//user.GET("/profile", userController.GetProfile)
+		//user.PUT("/profile", userController.UpdateProfile)
+		//user.POST("/auth-provider", userController.CreateAuthProvider)
+		user.POST("change-password", userController.ChangePassword)
+	}
 }

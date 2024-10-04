@@ -47,3 +47,16 @@ func (ur *UserRepository) CheckEmailExist(user *models.User) error {
 	}
 	return nil
 }
+
+func (ur *UserRepository) GetByID(id uint) (*models.User, error) {
+	var user models.User
+	result := ur.DB.First(&user, id)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &user, nil
+}
+
+func (ur *UserRepository) Update(user *models.User) error {
+	return ur.DB.Save(user).Error
+}

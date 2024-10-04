@@ -37,14 +37,19 @@ func (uc *UserController) Register(c *gin.Context) {
 		utils.SendErrorResponse(c, http.StatusBadRequest, "Invalid input data")
 		return
 	}
+	hashPassword, err := utils.HashPassword(input.Password)
+	if err != nil {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "Could not hash password")
+		return
+	}
 
 	user := models.User{
 		Name:     input.Name,
 		Email:    input.Email,
-		Password: input.Password,
+		Password: hashPassword,
 	}
 
-	err := uc.UserService.RegisterUser(&user)
+	err = uc.UserService.RegisterUser(&user)
 	if err != nil {
 		if err.Error() == "email already exists" {
 			utils.SendErrorResponse(c, http.StatusBadRequest, "Email already exists")
@@ -157,4 +162,51 @@ func (uc *UserController) CreateSuperUser(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Super user created successfully"})
+}
+
+// ChangePassword godoc
+// @Summary Change password
+// @Description Change password for a user
+// @Tags User
+// @Accept  json
+// @Produce  json
+// @Param Authorization header string true "Authorization"
+// @Param user body models.ChangePasswordInput true "Change Password Data"
+// @Success 200 {object} gin.H
+// @Failure 400 {object} gin.H
+// @Failure 401 {object} gin.H
+// @Failure 500 {object} gin.H
+// @Router /user/change-password [post]
+func (uc *UserController) ChangePassword(c *gin.Context) {
+	userID, _ := c.Get("userID")
+	var input models.ChangePasswordInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	user, err := uc.UserService.GetUserByID(userID.(uint))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not find user"})
+		return
+	}
+
+	if !utils.CheckPasswordHash(input.OldPassword, user.Password) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect old password"})
+		return
+	}
+
+	hashedPassword, err := utils.HashPassword(input.NewPassword)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not hash password"})
+		return
+	}
+
+	user.Password = hashedPassword
+	if err := uc.UserService.UpdateUser(user); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not update user"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Password updated successfully"})
 }

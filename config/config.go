@@ -1,10 +1,11 @@
 package config
 
 import (
+	"log"
+
 	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
-	"log"
 )
 
 type Config struct {

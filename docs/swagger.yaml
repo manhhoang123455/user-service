@@ -11,6 +11,17 @@ definitions:
         description: Valid is true if Time is not NULL
         type: boolean
     type: object
+  user-service_internal_models.ChangePasswordInput:
+    properties:
+      new_password:
+        minLength: 8
+        type: string
+      old_password:
+        type: string
+    required:
+    - new_password
+    - old_password
+    type: object
   user-service_internal_models.LoginInput:
     properties:
       email:
@@ -175,4 +186,43 @@ paths:
       summary: Register a new user
       tags:
       - user
+  /user/change-password:
+    post:
+      consumes:
+      - application/json
+      description: Change password for a user
+      parameters:
+      - description: Authorization
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Change Password Data
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/user-service_internal_models.ChangePasswordInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/gin.H'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/gin.H'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/gin.H'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/gin.H'
+      summary: Change password
+      tags:
+      - User
 swagger: "2.0"

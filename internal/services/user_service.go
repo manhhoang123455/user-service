@@ -95,3 +95,15 @@ func (us *UserService) HandleGoogleCallback(code string) (*models.User, error) {
 
 	return user, nil
 }
+
+func (us *UserService) GetUserByID(id uint) (*models.User, error) {
+	return us.UserRepository.GetByID(id)
+}
+
+func (us *UserService) UpdateUser(user *models.User) error {
+	err := us.UserRepository.Update(user)
+	if err != nil {
+		return err
+	}
+	return nil
+}
