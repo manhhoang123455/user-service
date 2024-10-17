@@ -10,7 +10,6 @@ RUN go build -o user-service ./cmd/user-service
 FROM alpine:3.15
 WORKDIR /app
 COPY --from=builder /app/user-service /app/user-service
-COPY --from=builder /app/config /app/config
 COPY --from=builder /app/.env /app/.env
 
 CMD ["./user-service"]
