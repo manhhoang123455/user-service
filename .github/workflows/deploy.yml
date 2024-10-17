@@ -6,7 +6,7 @@ on:
       - main
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
@@ -27,22 +27,19 @@ jobs:
       run: |
         echo "${{ secrets.ENV_VARS }}" > .env
 
-    - name: Add SSH host to known_hosts
+    - name: Login to GitHub Container Registry
+      run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+    - name: Build and push Docker image
       run: |
-        mkdir -p ~/.ssh
-        ssh-keyscan ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+        docker build -t ghcr.io/${{ github.repository }}/app:latest .
+        docker push ghcr.io/${{ github.repository }}/app:latest
 
-    - name: Build Docker image
-      run: docker-compose -f ./docker-compose.yml build
-
-    - name: Copy files via SCP
-      run: scp -r ./docker-compose.yml .env ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/root/docker/demo
-
-    - name: Deploy with Docker Compose
+    - name: Deploy application
       run: |
         ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
-          cd docker/demo
-          docker-compose down
-          docker-compose pull
-          docker-compose up -d
+          docker pull ghcr.io/${{ github.repository }}/app:latest
+          docker stop app || true
+          docker rm app || true
+          docker run -d --name app ghcr.io/${{ github.repository }}/app:latest
         EOF
