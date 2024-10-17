@@ -47,5 +47,5 @@ jobs:
           docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/user-service:latest
           docker stop user-service || true
           docker rm user-service || true
-          docker run -d -p 8080:8080 --name user-service --network badminton ${{ secrets.DOCKER_HUB_USERNAME }}/user-service:latest
+          docker run -d --name user-service --network badminton ${{ secrets.DOCKER_HUB_USERNAME }}/user-service:latest
         EOF
