@@ -13,6 +13,15 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
 
+    - name: Login to Docker Hub
+      run: echo ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }} | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
+
+    - name: Build Docker image
+      run: docker build -t ${{ secrets.DOCKER_HUB_USERNAME }}/user-service:latest .
+
+    - name: Push Docker image
+      run: docker push ${{ secrets.DOCKER_HUB_USERNAME }}/user-service:latest
+
     - name: Set up SSH
       uses: webfactory/ssh-agent@v0.5.3
       with:
@@ -26,20 +35,11 @@ jobs:
     - name: Create .env file
       run: |
         echo "${{ secrets.ENV_VARS }}" > .env
-
-    - name: Login to GitHub Container Registry
-      run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
-    - name: Build and push Docker image
-      run: |
-        docker build -t ghcr.io/${{ github.repository }}/app:latest .
-        docker push ghcr.io/${{ github.repository }}/app:latest
-
     - name: Deploy application
       run: |
         ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
-          docker pull ghcr.io/${{ github.repository }}/app:latest
-          docker stop app || true
-          docker rm app || true
-          docker run -d --name app ghcr.io/${{ github.repository }}/app:latest
+          docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/user-service:latest
+          docker stop user-service || true
+          docker rm user-service || true
+          docker run -d --name user-service ${{ secrets.DOCKER_HUB_USERNAME }}/user-service:latest
         EOF
