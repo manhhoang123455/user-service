@@ -36,7 +36,7 @@ jobs:
       run: docker-compose -f ./docker-compose.yml build
 
     - name: Copy files via SCP
-      run: scp -r ./docker-compose.yml .env ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/docker/demo
+      run: scp -r ./docker-compose.yml .env ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/root/docker/demo
 
     - name: Deploy with Docker Compose
       run: |
