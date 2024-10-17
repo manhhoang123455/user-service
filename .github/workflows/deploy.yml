@@ -27,16 +27,21 @@ jobs:
       run: |
         echo "${{ secrets.ENV_VARS }}" > .env
 
+    - name: Add SSH host to known_hosts
+      run: |
+        mkdir -p ~/.ssh
+        ssh-keyscan ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+
     - name: Build Docker image
       run: docker-compose -f ./docker-compose.yml build
 
     - name: Copy files via SCP
-      run: scp -r ./docker-compose.yml .env ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/docker
+      run: scp -r ./docker-compose.yml .env ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/docker/demo
 
     - name: Deploy with Docker Compose
       run: |
         ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
-          cd /docker
+          cd docker/demo
           docker-compose down
           docker-compose pull
           docker-compose up -d
